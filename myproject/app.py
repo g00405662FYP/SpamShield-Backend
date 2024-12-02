@@ -51,5 +51,21 @@ def protected():
     current_user = get_jwt_identity()
     return jsonify({'message': f'Hello, {current_user}! This is a protected route.'}), 200
 
+@app.route('/classify', methods=['POST'])
+@jwt_required()
+def classify():
+    data = request.json
+    text = data.get('text')
+
+    # Simple rule-based spam detection logic (replace with ML model later)
+    spam_keywords = ['free', 'win', 'offer', 'cash', 'prize']
+    is_spam = any(keyword in text.lower() for keyword in spam_keywords)
+
+    return jsonify({
+        'text': text,
+        'is_spam': is_spam,
+        'classification': 'spam' if is_spam else 'ham'
+    })
+
 if __name__ == '__main__':
     app.run(debug=True)
