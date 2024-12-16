@@ -2,18 +2,24 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from supabase import create_client, Client
+from transformers import pipeline
 
 # Flask app setup
 app = Flask(__name__)
-app.config['JWT_SECRET_KEY'] = 'MqJQeUbwG3hBgIyddvV4C2TMoL3hjKKoIqbWCkIaBWaWYHSDz1EMaumtIaxBQilTaw/DJye6SIPlmsBBb+GOgg=='  
+app.config['JWT_SECRET_KEY'] = 'MqJQeUbwG3hBgIyddvV4C2TMoL3hjKKoIqbWCkIaBWaWYHSDz1EMaumtIaxBQilTaw/DJye6SIPlmsBBb+GOgg=='
 
 CORS(app)
 jwt = JWTManager(app)
 
 # Supabase setup
-SUPABASE_URL = "https://cvditdbqsgrmtsrdepqr.supabase.co"  
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2ZGl0ZGJxc2dybXRzcmRlcHFyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMjIwOTAzNywiZXhwIjoyMDQ3Nzg1MDM3fQ.jdO73l07gRsO4w2_EjTXLiv-YcL3BUlxotG88nnz-9A"  
+SUPABASE_URL = "https://cvditdbqsgrmtsrdepqr.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2ZGl0ZGJxc2dybXRzcmRlcHFyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMjIwOTAzNywiZXhwIjoyMDQ3Nzg1MDM3fQ.jdO73l07gRsO4w2_EjTXLiv-YcL3BUlxotG88nnz-9A"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Hugging Face Spam Classifier
+classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+
+
 
 @app.route('/signup', methods=['POST'])
 def signup():
@@ -57,15 +63,20 @@ def classify():
     data = request.json
     text = data.get('text')
 
-    # Simple rule-based spam detection logic (replace with ML model later)
-    spam_keywords = ['free', 'win', 'offer', 'cash', 'prize']
-    is_spam = any(keyword in text.lower() for keyword in spam_keywords)
+    # labels for classification
+    candidate_labels = ["spam", "ham"]
+
+    # Use Hugging Face zero-shot classifier
+    prediction = classifier(text, candidate_labels=candidate_labels)  # Pass as keyword argument
+    label = prediction['labels'][0]  # Best label (spam or ham)
+    score = prediction['scores'][0]  # Confidence score
 
     return jsonify({
         'text': text,
-        'is_spam': is_spam,
-        'classification': 'spam' if is_spam else 'ham'
+        'label': label,
+        'score': round(score, 4)  # Rounded confidence score
     })
+
 
 if __name__ == '__main__':
     app.run(debug=True)
