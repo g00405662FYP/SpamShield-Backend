@@ -60,22 +60,34 @@ def protected():
 @app.route('/classify', methods=['POST'])
 @jwt_required()
 def classify():
-    data = request.json
-    text = data.get('text')
+    try:
+        current_user = get_jwt_identity()
+        print(f"DEBUG: Current User: {current_user}")
 
-    # labels for classification
-    candidate_labels = ["spam", "ham"]
+        data = request.json
+        text = data.get('text')
+        print(f"DEBUG: Input Text: {text}")
 
-    # Use Hugging Face zero-shot classifier
-    prediction = classifier(text, candidate_labels=candidate_labels)  # Pass as keyword argument
-    label = prediction['labels'][0]  # Best label (spam or ham)
-    score = prediction['scores'][0]  # Confidence score
+        # Define labels for classification
+        candidate_labels = ["spam", "ham"]
 
-    return jsonify({
-        'text': text,
-        'label': label,
-        'score': round(score, 4)  # Rounded confidence score
-    })
+        # Use Hugging Face zero-shot classifier
+        prediction = classifier(text, candidate_labels=candidate_labels)
+        print("DEBUG: Prediction Output:", prediction)
+
+        label = prediction['labels'][0]
+        score = prediction['scores'][0]
+
+        return jsonify({
+            'text': text,
+            'label': label,
+            'score': round(score, 4)
+        })
+
+    except Exception as e:
+        print("ERROR:", str(e))
+        return jsonify({'error': 'Failed to classify the message.'}), 500
+
 
 
 if __name__ == '__main__':
