@@ -2,8 +2,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from supabase import create_client, Client
-from transformers import pipeline
 import os
+import joblib
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -21,8 +21,9 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Hugging Face SMS Spam Classifier
-classifier = pipeline("text-classification", model="mrm8488/bert-tiny-finetuned-sms-spam-detection")
+# Load trained spam classifier and vectorizer
+spam_classifier = joblib.load("spam_classifier.pkl")
+vectorizer = joblib.load("tfidf_vectorizer.pkl")
 
 @app.route('/signup', methods=['POST'])
 def signup():
@@ -72,22 +73,23 @@ def classify():
         text = data.get('text')
         print(f"DEBUG: Input Text: {text}")
 
-        # Classify the input text
-        prediction = classifier(text)
-        print("DEBUG: Prediction Output:", prediction)
+        if not text:
+            return jsonify({'error': 'No text provided'}), 400
 
-        # Map Hugging Face labels to "spam" and "ham"
-        label_map = {
-            "LABEL_1": "spam",
-            "LABEL_0": "ham"
-        }
-        label = label_map.get(prediction[0]['label'], "unknown")  # Default to "unknown" if the label is missing
-        score = prediction[0]['score']
+        # Transform input text using the saved TF-IDF vectorizer
+        text_vectorized = vectorizer.transform([text])
+
+        # Predict using the trained model
+        prediction = spam_classifier.predict(text_vectorized)[0]
+        confidence = spam_classifier.predict_proba(text_vectorized)[0].max()
+
+        # Convert numeric prediction to label
+        label = "Spam" if prediction == 1 else "Ham"
 
         return jsonify({
             'text': text,
             'label': label,
-            'score': round(score, 4)
+            'confidence': round(confidence, 4)
         })
 
     except Exception as e:
