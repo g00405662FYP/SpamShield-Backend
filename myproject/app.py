@@ -1,8 +1,8 @@
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from supabase import create_client, Client
-import os
 import joblib
 from dotenv import load_dotenv
 
@@ -19,11 +19,17 @@ jwt = JWTManager(app)
 # Supabase setup
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("Supabase URL and Key must be set in environment variables.")
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Load trained spam classifier and vectorizer
 spam_classifier = joblib.load("spam_classifier.pkl")
 vectorizer = joblib.load("vectorizer.pkl")
+
+# Your routes here...
 
 @app.route('/signup', methods=['POST'])
 def signup():

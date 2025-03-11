@@ -27,6 +27,14 @@ jobs:
           pip install -r myproject/requirements.txt
           pip install -e .
 
+      - name: Set environment variables
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          echo "SUPABASE_URL=$SUPABASE_URL" >> $GITHUB_ENV
+          echo "SUPABASE_KEY=$SUPABASE_KEY" >> $GITHUB_ENV
+
       - name: Run tests
         run: |
           pytest
