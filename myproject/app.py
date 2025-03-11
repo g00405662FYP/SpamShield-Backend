@@ -152,5 +152,37 @@ def history():
         print("ERROR:", str(e))
         return jsonify({'error': 'Failed to fetch history.'}), 500
 
+@app.route('/profile', methods=['GET'])
+@jwt_required()
+def profile():
+    try:
+        current_user = get_jwt_identity()
+        print(f"DEBUG: Fetching profile for user: {current_user}")
+
+        # Query Supabase for the user's profile data
+        response = supabase.table('users') \
+            .select('*') \
+            .eq('email', current_user) \
+            .single() \
+            .execute()
+
+        # Debug: Check Supabase response
+        print(f"DEBUG: Supabase Profile Response: {response}")
+
+        # Check if data is returned
+        if not response.data:
+            return jsonify({'error': 'User not found.'}), 404
+
+        # Return the profile data
+        return jsonify({
+            'name': response.data.get('name'),
+            'email': response.data.get('email'),
+            'created_at': response.data.get('created_at'),
+        }), 200
+
+    except Exception as e:
+        print("ERROR:", str(e))
+        return jsonify({'error': 'Failed to fetch profile data.'}), 500
+
 if __name__ == '__main__':
     app.run(debug=True)
