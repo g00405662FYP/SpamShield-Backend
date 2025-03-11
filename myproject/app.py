@@ -100,6 +100,7 @@ def classify():
             'email': current_user,
             'message': text,
             'label': label,
+            'confidence': float(confidence),  # Save confidence score
         }).execute()
 
         # Debug: Check Supabase response
@@ -123,6 +124,33 @@ def classify():
         print("ERROR:", str(e))
         return jsonify({'error': 'Failed to classify the message.'}), 500
 
+@app.route('/history', methods=['GET'])
+@jwt_required()
+def history():
+    try:
+        current_user = get_jwt_identity()
+        print(f"DEBUG: Fetching history for user: {current_user}")
+
+        # Query Supabase for the user's classification history
+        response = supabase.table('classified_messages') \
+            .select('*') \
+            .eq('email', current_user) \
+            .order('created_at', desc=True) \
+            .execute()
+
+        # Debug: Check Supabase response
+        print(f"DEBUG: Supabase History Response: {response}")
+
+        # Check if data is returned
+        if not response.data:
+            return jsonify({'message': 'No history found for this user.'}), 404
+
+        # Return the history data
+        return jsonify(response.data), 200
+
+    except Exception as e:
+        print("ERROR:", str(e))
+        return jsonify({'error': 'Failed to fetch history.'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
