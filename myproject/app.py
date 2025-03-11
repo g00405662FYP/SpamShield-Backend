@@ -23,7 +23,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Load trained spam classifier and vectorizer
 spam_classifier = joblib.load("spam_classifier.pkl")
-vectorizer = joblib.load("tfidf_vectorizer.pkl")
+vectorizer = joblib.load("vectorizer.pkl")
 
 @app.route('/signup', methods=['POST'])
 def signup():
@@ -70,31 +70,59 @@ def classify():
 
         # Get input text from the request
         data = request.json
+        print(f"DEBUG: Request Data: {data}")  # Log the entire request data
         text = data.get('text')
         print(f"DEBUG: Input Text: {text}")
 
         if not text:
             return jsonify({'error': 'No text provided'}), 400
 
+        # Debug: Check if vectorizer and model are loaded
+        if not vectorizer or not spam_classifier:
+            print("ERROR: Vectorizer or model not loaded.")
+            return jsonify({'error': 'Model not loaded.'}), 500
+
         # Transform input text using the saved TF-IDF vectorizer
         text_vectorized = vectorizer.transform([text])
+        print(f"DEBUG: Text Vectorized: {text_vectorized}")
 
-        # Predict using the trained model
+        # Predict
         prediction = spam_classifier.predict(text_vectorized)[0]
         confidence = spam_classifier.predict_proba(text_vectorized)[0].max()
+        print(f"DEBUG: Prediction: {prediction}, Confidence: {confidence}")
 
         # Convert numeric prediction to label
         label = "Spam" if prediction == 1 else "Ham"
+        print(f"DEBUG: Label: {label}")
 
+        # Save message to Supabase database
+        response = supabase.table('classified_messages').insert({
+            'email': current_user,
+            'message': text,
+            'label': label,
+        }).execute()
+
+        # Debug: Check Supabase response
+        print(f"DEBUG: Supabase Response: {response}")
+
+        # Check for success or failure of the Supabase insert
+        if not response.data:
+            print("ERROR: Supabase insert failed.")
+            return jsonify({'error': 'Failed to save message to database.'}), 500
+
+        print("DEBUG: Classification successful, returning result to client.")
+
+        # Return classification result
         return jsonify({
             'text': text,
             'label': label,
-            'confidence': round(confidence, 4)
+            'confidence': float(confidence)  
         })
 
     except Exception as e:
         print("ERROR:", str(e))
         return jsonify({'error': 'Failed to classify the message.'}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
