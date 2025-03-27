@@ -35,6 +35,7 @@ jobs:
           echo "SUPABASE_URL=$SUPABASE_URL" >> $GITHUB_ENV
           echo "SUPABASE_KEY=$SUPABASE_KEY" >> $GITHUB_ENV
 
-      - name: Run tests
+      - name: Run tests in myproject
+        working-directory: myproject
         run: |
           pytest
