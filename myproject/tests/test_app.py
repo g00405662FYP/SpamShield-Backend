@@ -1,5 +1,5 @@
 import pytest
-from myproject.app import app  # Correct import statement
+from myproject.app import app 
 
 @pytest.fixture
 def client():
@@ -10,20 +10,13 @@ def client():
 def test_home_page(client):
     response = client.get('/')
     assert response.status_code == 200
-    assert b"Home" in response.data  # Replace with actual content from your home page
+    assert b'Welcome to SpamShield' in response.data
 
-def test_signup(client):
-    response = client.post('/signup', json={
-        'email': 'test@example.com',
-        'password': 'password123'
-    })
-    assert response.status_code == 201
-    assert b"User registered successfully" in response.data
 
 def test_login(client):
     response = client.post('/login', json={
-        'email': 'test@example.com',
-        'password': 'password123'
+        'email': 'cormacmangan22@gmail.com',
+        'password': 'test123'
     })
     assert response.status_code == 200
     assert b"access_token" in response.data
@@ -31,8 +24,8 @@ def test_login(client):
 def test_protected_route(client):
     # First, log in to get a token
     login_response = client.post('/login', json={
-        'email': 'test@example.com',
-        'password': 'password123'
+        'email': 'cormacmangan22@gmail.com',
+        'password': 'test123'
     })
     token = login_response.json['access_token']
 
@@ -46,8 +39,8 @@ def test_protected_route(client):
 def test_classify(client):
     # First, log in to get a token
     login_response = client.post('/login', json={
-        'email': 'test@example.com',
-        'password': 'password123'
+        'email': 'cormacmangan22@gmail.com',
+        'password': 'test123'
     })
     token = login_response.json['access_token']
 

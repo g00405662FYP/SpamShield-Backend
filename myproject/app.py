@@ -5,9 +5,13 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from supabase import create_client, Client
 import joblib
 from dotenv import load_dotenv
+from gotrue.errors import AuthApiError
+import traceback
 
 # Load environment variables
 load_dotenv()
+print("DEBUG Supabase URL:", os.getenv("SUPABASE_URL"))
+
 
 # Flask app setup
 app = Flask(__name__)
@@ -29,7 +33,11 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 spam_classifier = joblib.load("spam_classifier.pkl")
 vectorizer = joblib.load("vectorizer.pkl")
 
-# Your routes here...
+# Routes
+
+@app.route('/')
+def home():
+    return jsonify({'message': 'Welcome to SpamShield API'}), 200
 
 @app.route('/signup', methods=['POST'])
 def signup():
@@ -37,13 +45,13 @@ def signup():
     email = data.get('email')
     password = data.get('password')
 
-    # Create user in Supabase
-    response = supabase.auth.sign_up({'email': email, 'password': password})
+    try:
+        response = supabase.auth.sign_up({'email': email, 'password': password})
+        return jsonify({'message': 'User registered successfully'}), 201
 
-    if response.get('error'):
-        return jsonify({'message': response['error']['message']}), 400
+    except AuthApiError as e:
+        return jsonify({'message': str(e)}), 400
 
-    return jsonify({'message': 'User registered successfully'}), 201
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -51,15 +59,19 @@ def login():
     email = data.get('email')
     password = data.get('password')
 
-    # Authenticate user with Supabase
-    response = supabase.auth.sign_in_with_password({'email': email, 'password': password})
+    try:
+        response = supabase.auth.sign_in_with_password({'email': email, 'password': password})
 
-    if response.get('error'):
-        return jsonify({'message': response['error']['message']}), 401
 
-    # Create JWT token
-    access_token = create_access_token(identity=email)
-    return jsonify({'access_token': access_token}), 200
+        if not response.session:
+            return jsonify({'message': 'Login failed'}), 401
+
+        access_token = create_access_token(identity=email)
+        return jsonify({'access_token': access_token}), 200
+
+    except AuthApiError as e:
+        return jsonify({'message': str(e)}), 401
+
 
 @app.route('/protected', methods=['GET'])
 @jwt_required()
@@ -74,61 +86,50 @@ def classify():
         current_user = get_jwt_identity()
         print(f"DEBUG: Current User: {current_user}")
 
-        # Get input text from the request
         data = request.json
-        print(f"DEBUG: Request Data: {data}")  # Log the entire request data
+        print(f"DEBUG: Request Data: {data}")
         text = data.get('text')
         print(f"DEBUG: Input Text: {text}")
 
         if not text:
             return jsonify({'error': 'No text provided'}), 400
 
-        # Debug: Check if vectorizer and model are loaded
         if not vectorizer or not spam_classifier:
             print("ERROR: Vectorizer or model not loaded.")
             return jsonify({'error': 'Model not loaded.'}), 500
 
-        # Transform input text using the saved TF-IDF vectorizer
-        text_vectorized = vectorizer.transform([text])
-        print(f"DEBUG: Text Vectorized: {text_vectorized}")
+        print("DEBUG: Classifier type:", type(spam_classifier))
+        print("DEBUG: Vectorizer type:", type(vectorizer))
 
-        # Predict
+        text_vectorized = vectorizer.transform([text])
         prediction = spam_classifier.predict(text_vectorized)[0]
         confidence = spam_classifier.predict_proba(text_vectorized)[0].max()
-        print(f"DEBUG: Prediction: {prediction}, Confidence: {confidence}")
-
-        # Convert numeric prediction to label
         label = "Spam" if prediction == 1 else "Ham"
-        print(f"DEBUG: Label: {label}")
 
-        # Save message to Supabase database
         response = supabase.table('classified_messages').insert({
-            'email': current_user,
             'message': text,
             'label': label,
-            'confidence': float(confidence),  # Save confidence score
+            'confidence': float(confidence),
         }).execute()
 
-        # Debug: Check Supabase response
         print(f"DEBUG: Supabase Response: {response}")
 
-        # Check for success or failure of the Supabase insert
-        if not response.data:
-            print("ERROR: Supabase insert failed.")
+        if not hasattr(response, "data") or not response.data:
+            print("ERROR: Supabase insert failed or no data returned.")
             return jsonify({'error': 'Failed to save message to database.'}), 500
 
-        print("DEBUG: Classification successful, returning result to client.")
-
-        # Return classification result
         return jsonify({
             'text': text,
             'label': label,
-            'confidence': float(confidence)  
+            'confidence': float(confidence)
         })
 
     except Exception as e:
+        import traceback
         print("ERROR:", str(e))
-        return jsonify({'error': 'Failed to classify the message.'}), 500
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/history', methods=['GET'])
 @jwt_required()
