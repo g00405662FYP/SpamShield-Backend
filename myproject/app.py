@@ -17,7 +17,11 @@ print("DEBUG Supabase URL:", os.getenv("SUPABASE_URL"))
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY")
 
-CORS(app)
+CORS(app, resources={r"/*": {"origins": [
+    "https://spamshield-52b58.web.app",
+    "https://spamshield-52b58.firebaseapp.com"
+]}}, supports_credentials=True)
+
 jwt = JWTManager(app)
 
 # Supabase setup
@@ -110,6 +114,7 @@ def classify():
             'message': text,
             'label': label,
             'confidence': float(confidence),
+            'email': current_user
         }).execute()
 
         print(f"DEBUG: Supabase Response: {response}")
@@ -119,6 +124,7 @@ def classify():
             return jsonify({'error': 'Failed to save message to database.'}), 500
 
         return jsonify({
+            'id': response.data[0]['id'],
             'text': text,
             'label': label,
             'confidence': float(confidence)
@@ -146,7 +152,10 @@ def history():
             .execute()
 
         # Debug: Check Supabase response
+        print(f"DEBUG: History user: {current_user}")
         print(f"DEBUG: Supabase History Response: {response}")
+
+        
 
         # Check if data is returned
         if not response.data:
@@ -159,37 +168,30 @@ def history():
         print("ERROR:", str(e))
         return jsonify({'error': 'Failed to fetch history.'}), 500
 
-@app.route('/profile', methods=['GET'])
+@app.route('/feedback', methods=['POST'])
 @jwt_required()
-def profile():
+def feedback():
+    data = request.json
+    message_id = data.get('id')
+    is_correct = data.get('is_classification_correct')
+
+    if message_id is None or is_correct is None:
+        return jsonify({'error': 'Missing required fields'}), 400
+
     try:
-        current_user = get_jwt_identity()
-        print(f"DEBUG: Fetching profile for user: {current_user}")
+        response = supabase.table('classified_messages').update({
+            'is_classification_correct': is_correct
+        }).eq('id', message_id).execute()
 
-        # Query Supabase for the user's profile data
-        response = supabase.table('users') \
-            .select('*') \
-            .eq('email', current_user) \
-            .single() \
-            .execute()
-
-        # Debug: Check Supabase response
-        print(f"DEBUG: Supabase Profile Response: {response}")
-
-        # Check if data is returned
-        if not response.data:
-            return jsonify({'error': 'User not found.'}), 404
-
-        # Return the profile data
-        return jsonify({
-            'name': response.data.get('name'),
-            'email': response.data.get('email'),
-            'created_at': response.data.get('created_at'),
-        }), 200
+        if response.data:
+            return jsonify({'success': True}), 200
+        else:
+            return jsonify({'error': 'Failed to update'}), 500
 
     except Exception as e:
-        print("ERROR:", str(e))
-        return jsonify({'error': 'Failed to fetch profile data.'}), 500
+        print(f"Feedback error: {e}")
+        return jsonify({'error': 'Server error'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)

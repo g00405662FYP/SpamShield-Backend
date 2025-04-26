@@ -37,7 +37,7 @@ def test_protected_route(client):
     assert b"Hello" in response.data
 
 def test_classify(client):
-    # First, log in to get a token
+    # Log in to get a token
     login_response = client.post('/login', json={
         'email': 'cormacmangan22@gmail.com',
         'password': 'test123'
