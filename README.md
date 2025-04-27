@@ -1,4 +1,4 @@
-# SpamShield - Backend API
+# SpamShield - Backend Flask API
 
 This repository contains the backend server for SpamShield.
 The backend provides RESTful API endpoints for email classification, user authentication, feedback collection, and history tracking.
